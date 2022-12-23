@@ -1,0 +1,61 @@
+.bgColor {
+    background-color: var(--color-bg);
+}
+
+body {
+    padding: 32px;
+    color: var(--color-white);
+}
+
+.button-container {
+    display: flex;
+    justify-content: space-between;
+}
+
+.reset {
+    background-color: var(--color-secondary);
+    color: var(--color-white);
+}
+
+.play {
+    background-color: var(--color-primary);
+    color: var(--color-secondary);
+}
+
+.marker {
+    display: flex;
+    align-items: center;
+    column-gap: 16px;
+    margin-top: 40px;
+    margin-bottom: 76px;
+}
+
+.marker-input {
+    padding: 20px 32px;
+    width:105px;
+    text-align: right;
+    background-color: var(--color-white);
+}
+
+.element-selected {
+    background-color: var(--color-primary);
+    color: var(--color-secondary);
+    padding: 16px;
+    border-radius: 8px;
+    margin: 16px 0 48px;
+}
+
+
+ 
+/* .element-selected::-webkit-details-marker {
+    display: none
+} */
+  
+/* .element-selected::after {
+    content: ' ►';
+}
+
+.element-selected[open] summary:after {
+    content: " ▼";
+} */
+

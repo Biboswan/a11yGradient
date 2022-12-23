@@ -1,18 +1,32 @@
 {
     "name": "A11y Gradient",
+    "description": "Browser devtools checks color contrast between background and text colors. But it is limited to monochromatic colours. A11y Gradient deals with gradients too.",
     "version": "1.0",
-    "manifest_version": 2,
+    "manifest_version": 3,
     "content_scripts": [
-
-    ],
+		{
+			"matches": [
+				"http://*/*",
+				"https://*/*"
+			],
+			"js": [
+				"js/content.js"
+			],
+			"all_frames": true
+		}
+	],
     "icons": {
     "16": "assets/logo/icon16.png",
     "48": "assets/logo/icon48.png",
     "128": "assets/logo/icon128.png"
     },
-    "browser_action": {
-        "default_title": "A11y Gradient"
+    "action": {
+        "default_popup": "html/popup.html"
     },
-    "devtools_page": "devtools/my-page.html",
-    "permissions": [ "tabs", "<all_urls>" ]
+    "background": {
+        "service_worker": "js/background.js"
+    },
+    "devtools_page": "html/devtools.html",
+    "permissions": [ "tabs", "scripting", "activeTab" ],
+    "host_permissions": ["<all_urls>"]
 }
