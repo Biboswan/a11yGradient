@@ -43,10 +43,73 @@ body {
     padding: 16px;
     border-radius: 8px;
     margin: 16px 0 48px;
+    font-weight: bold;
 }
 
+.color-contrast-radioContainer {
+    display: flex;
+    column-gap: 20px;
+    margin-bottom: 56px;
+}
 
- 
+.color-contrast-radio-element {
+    display: flex;
+    column-gap: 16px;
+}
+
+.color-contrast-radio-element > label {
+    cursor: pointer;
+}
+
+.color-contrast-radio-element > input::after {
+    content: '';
+    background: var(--color-secondary);
+    border-radius: 100%;
+    display: inline-block;
+    width: 26px;
+    height: 26px;
+    position: relative;
+    vertical-align: top;
+    cursor: pointer;
+    text-align: center;
+    transition: all 250ms ease;
+    box-sizing: border-box;
+    margin: -6px 0 0 -6px;
+}
+
+.color-contrast-radio-element > input:checked::after {
+    border: 2px solid var(--color-primary);
+    content: '';
+    background: var(--color-secondary);
+    border-radius: 100%;
+    display: inline-block;
+    width: 26px;
+    height: 26px;
+    position: relative;
+    vertical-align: top;
+    cursor: pointer;
+    text-align: center;
+    transition: all 250ms ease;
+    box-sizing: border-box;
+    margin: -6px 0 0 -6px;
+}
+
+.contrast-color-display-container {
+    display: flex;
+    column-gap: 20px;
+    align-items: center;
+}
+
+#contrast-color-display {
+    width: 40px;
+    height: 26px;
+}
+
+#contrast-color-display-label {
+    color: var(--color-white);
+    font-weight: bolder;
+}
+
 /* .element-selected::-webkit-details-marker {
     display: none
 } */
