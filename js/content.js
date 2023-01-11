@@ -1,26 +1,32 @@
+import ColorContrastChecker from 'color-contrast-checker';
+import { messageTypes } from './common.js';
+
 let _selectedElement;
-let _markerGap='15';
-let _colorContrastType='text-color';
+let _markerGap = '15';
+let _colorContrastType = 'text-color';
 let contrastColor;
-const COLOR_TRANSPARENT = ['rgba(0,0,0,0)','transparent'];
+const COLOR_TRANSPARENT = ['rgba(0,0,0,0)', 'transparent'];
 let canvas;
 
-let shouldRunContrast=0;
+let shouldRunContrast = 0;
 
-const A11Y_CONTEXT = 'A11Y_CONTEXT';
-const PANEL_INIT = `${A11Y_CONTEXT}_PANEL_INIT`;
-const PANEL_REGISTER_FRAME = `${A11Y_CONTEXT}_REGISTER_FRAME`;
-const UPDATE_SELECTED_ELEMENT = `${A11Y_CONTEXT}_UPDATE_SELECTED_ELEMENT`;
-const SET_COLOR_CONTRAST = `${A11Y_CONTEXT}_SET_COLOR_CONTRAST`;
-const UPDATE_CONTRAST_COLOR = `${A11Y_CONTEXT}_UPDATE_CONTRAST_COLOR`;
-const SET_MARKER_GAP = `${A11Y_CONTEXT}_SET_MARKER_GAP`;
-const UPDATE_SHOULD_RUN_CONTRAST = `${A11Y_CONTEXT}_UPDATE_SHOULD_RUN_CONTRAST`;
+const {
+    PANEL_INIT,
+    PANEL_REGISTER_FRAME,
+    UPDATE_SELECTED_ELEMENT,
+    SET_COLOR_CONTRAST,
+    UPDATE_CONTRAST_COLOR,
+    SET_MARKER_GAP,
+    UPDATE_SHOULD_RUN_CONTRAST,
+} = messageTypes;
 
 const colorTypeToStyle = {
-	'text-color':'color',
-	'text-border': '-webkit-text-stroke-color',
-	'border-color': 'border-color'
+    'text-color': 'color',
+    'text-border': '-webkit-text-stroke-color',
+    'border-color': 'border-color',
 };
+
+const ccc = new ColorContrastChecker();
 
 function colorForElement(element, what) {
     let color = null;
@@ -37,119 +43,154 @@ function colorForElement(element, what) {
 
 //Find the nearest parent element which decides its background color or background-image
 function findBgElement(element) {
-	let color = null;
+    let color = null;
     let w = element.ownerDocument.defaultView;
     while (element) {
         color = w.getComputedStyle(element).getPropertyValue('background-color');
         if (color && !COLOR_TRANSPARENT.includes(color)) {
-            return { element, backgroundColor: color }
+            return { element, backgroundColor: color };
         }
 
-		color = w.getComputedStyle(element).getPropertyValue('background-image');
-		if (color!=='none') {
-			return { element, backgroundImage: color }
-		}
+        color = w.getComputedStyle(element).getPropertyValue('background-image');
+        if (color !== 'none') {
+            return { element, backgroundImage: color };
+        }
         element = element.parentElement;
     }
     return null;
 }
 
 function createMessageForSelectedElement(element) {
-    if (!element || element.nodeType !== 1 ) {
-		return { type: UPDATE_SELECTED_ELEMENT, selectedElement: {} };
-	}
+    if (!element || element.nodeType !== 1) {
+        return { type: UPDATE_SELECTED_ELEMENT, selectedElement: {} };
+    }
 
-	return {
+    console.log('UPDATE_SELECTED_ELEMENT', element);
+    return {
         type: UPDATE_SELECTED_ELEMENT,
         selectedElement: element.outerHTML,
-		color: contrastColor
+        color: contrastColor,
     };
 }
 
 function setSelectedElement(element) {
+    console.log('abs', element);
+    if (!element) return;
     // If the selected element is the same, let handlers in other iframe contexts handle it instead.
-	if (_selectedElement === undefined || element !== _selectedElement) {
-		_selectedElement = element;
-		contrastColor = colorForElement(_selectedElement,colorTypeToStyle[_colorContrastType]);
-		chrome.runtime.sendMessage(createMessageForSelectedElement(element));
-	}
+    if (_selectedElement === undefined || element !== _selectedElement) {
+        _selectedElement = element;
+        contrastColor = colorForElement(_selectedElement, colorTypeToStyle[_colorContrastType]);
+        console.log('contrast', contrastColor);
+        chrome.runtime.sendMessage(createMessageForSelectedElement(element));
+    }
 }
 
 function setColorContrastType(colorContrastType) {
-	_colorContrastType=colorContrastType;
-	if (!selectedElement) return;
+    _colorContrastType = colorContrastType;
+    if (!_selectedElement) return;
 
-	switch(_colorContrastType) {
-		case 'text-color':
-			contrastColor = colorForElement(_selectedElement,colorTypeToStyle['text-color']);
-			break;
-		case 'text-border':
-			contrastColor = colorForElement(_selectedElement,colorTypeToStyle['-webkit-text-stroke-color']);
-			break;
-		case 'element-border':
-			contrastColor = colorForElement(_selectedElement,colorTypeToStyle['border-color']);
-			break;
-	}
+    switch (_colorContrastType) {
+        case 'text-color':
+            contrastColor = colorForElement(_selectedElement, colorTypeToStyle['text-color']);
+            break;
+        case 'text-border':
+            contrastColor = colorForElement(
+                _selectedElement,
+                colorTypeToStyle['-webkit-text-stroke-color']
+            );
+            break;
+        case 'element-border':
+            contrastColor = colorForElement(_selectedElement, colorTypeToStyle['border-color']);
+            break;
+    }
 }
 
 function setMarkerGap(markerGap) {
-	_markerGap=markerGap;
+    _markerGap = markerGap;
 }
 
 function getOffset(el) {
-	const rect = el.getBoundingClientRect();
-	return {
-	  left: rect.left + window.scrollX,
-	  top: rect.top + window.scrollY
-	};
-  }
-  
+    const rect = el.getBoundingClientRect();
+    return {
+        left: rect.left + window.scrollX,
+        top: rect.top + window.scrollY,
+    };
+}
+
+function findColorContrastRatios(canvas) {
+    const gap = Number.parseInt(_markerGap);
+    const ctx = canvas.getContext('2d');
+    let xmax = canvas.width;
+    let ymax = canvas.height;
+    const contrastRatios = [];
+    for (let y = 0; y <= ymax; y = y + gap) {
+        contrastRatios.push([]);
+        let lastIndex = contrastRatios.length - 1;
+        for (let x = 0; x <= xmax; x = x + gap) {
+            contrastRatios[lastIndex].push(ctx.getImageData(x, y, 1, 1).data);
+        }
+    }
+
+    return contrastRatios;
+}
 
 function play() {
-	shouldRunContrast=1;
-	const { element: parentBgElement, backgroundColor, backgroundImage } = colorContrastType !=='element-border' ?
-	findBgElement(_selectedElement) : findBgElement(_selectedElement.parentElement);
+    shouldRunContrast = 1;
+    const { element: parentBgElement, backgroundColor, backgroundImage } =
+        colorContrastType !== 'element-border'
+            ? findBgElement(_selectedElement)
+            : findBgElement(_selectedElement.parentElement);
     canvas = document.createElement('canvas');
-	const context = canvas.getContext('2d');
-
-	const sourceWidth = parentBgElement.clientWidth;
+    const sourceWidth = parentBgElement.clientWidth;
     const sourceHeight = parentBgElement.clientHeight;
 
-	canvas.width = sourceWidth;
+    canvas.width = sourceWidth;
     canvas.height = sourceHeight;
-    canvas.style.height = sourceHeight + "px";
-    canvas.style.width = sourceWidth + "px";
-	if (backgroundColor) {
-	 	canvas.style.backgroundColor = backgroundColor;
-	} else {
-		canvas.style.backgroundImage = backgroundImage;
-	}
-	// const { left, top } = getOffset(parentBgElement);
+    canvas.style.height = sourceHeight + 'px';
+    canvas.style.width = sourceWidth + 'px';
+    if (backgroundColor) {
+        canvas.style.backgroundColor = backgroundColor;
+    } else {
+        canvas.style.backgroundImage = backgroundImage;
+    }
+
+    const contrastRatios = findColorContrastRatios(canvas);
+    console.log('t', contrastRatios);
+    // const { left, top } = getOffset(parentBgElement);
 }
 
 function reset() {
-	shouldRunContrast=0;
+    shouldRunContrast = 0;
 }
 
-chrome.runtime.onMessage.addListener(function ( message ) {
-	switch(message.type) {
-		case PANEL_INIT: 
-			chrome.runtime.sendMessage( { type: PANEL_REGISTER_FRAME, url: window.location.href } );
-			break;
-		case SET_COLOR_CONTRAST:
-			setColorContrastType(message.value);
-			chrome.runtime.sendMessage( { type: UPDATE_CONTRAST_COLOR, color: contrastColor } );
-			break;
-		case SET_MARKER_GAP:
-			setMarkerGap(message.value)
-			break;
-		case UPDATE_SHOULD_RUN_CONTRAST:
-			const { value } = message;
-			if (value===true) {
-				play();
-			} else {
-				reset();
-			}
-			break;
-	}
+//setSelectedElement(document?.body);
+
+chrome.runtime.onMessage.addListener(function (message) {
+    switch (message.type) {
+        case PANEL_INIT:
+            console.log('init');
+            chrome.runtime.sendMessage({ type: PANEL_REGISTER_FRAME, url: window.location.href });
+            break;
+        case SET_COLOR_CONTRAST:
+            setColorContrastType(message.value);
+            chrome.runtime.sendMessage({ type: UPDATE_CONTRAST_COLOR, color: contrastColor });
+            break;
+        case SET_MARKER_GAP:
+            setMarkerGap(message.value);
+            break;
+        case UPDATE_SHOULD_RUN_CONTRAST:
+            const { value } = message;
+            if (value === true) {
+                play();
+            } else {
+                reset();
+            }
+            break;
+    }
 });
+
+/* 
+Webpack changes the name of the function and also is scoped inside an IIFE.
+Hence chrome.devtools.inspectedWindow in devtools was not able to call this function 
+*/
+window.setSelectedElement = setSelectedElement;

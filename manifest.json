@@ -4,29 +4,26 @@
     "version": "1.0",
     "manifest_version": 3,
     "content_scripts": [
-		{
-			"matches": [
-				"http://*/*",
-				"https://*/*"
-			],
-			"js": [
-				"js/content.js"
-			],
-			"all_frames": true
-		}
-	],
+        {
+            "matches": ["<all_urls>"],
+            "js": ["js/content.bundle.js"],
+            "run_at": "document_start",
+            "all_frames": true
+        }
+    ],
     "icons": {
-    "16": "assets/logo/icon16.png",
-    "48": "assets/logo/icon48.png",
-    "128": "assets/logo/icon128.png"
+        "16": "assets/logo/icon16.png",
+        "48": "assets/logo/icon48.png",
+        "128": "assets/logo/icon128.png"
     },
     "action": {
         "default_popup": "html/popup.html"
     },
     "background": {
-        "service_worker": "js/background.js"
+        "service_worker": "js/background.bundle.js",
+        "type": "module"
     },
     "devtools_page": "html/devtools.html",
-    "permissions": [ "tabs", "scripting", "activeTab" ],
+    "permissions": ["tabs", "scripting", "activeTab"],
     "host_permissions": ["<all_urls>"]
 }
