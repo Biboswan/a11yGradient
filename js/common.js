@@ -16,3 +16,5 @@ export const messageTypes = {
     SET_MARKER_GAP,
     UPDATE_SHOULD_RUN_CONTRAST,
 };
+
+export const getPortName = id => `${A11Y_CONTEXT}:${id}`;

@@ -1,6 +1,4 @@
-import { A11Y_CONTEXT, messageTypes } from './common.js';
-
-chrome.devtools.panels.create('A11y Gradient', '../assets/logo/icon16.png', 'html/devtools.html');
+import { messageTypes, getPortName } from './common.js';
 
 const {
     PANEL_INIT,
@@ -12,25 +10,58 @@ const {
     UPDATE_SHOULD_RUN_CONTRAST,
 } = messageTypes;
 
-let tabId;
+let port, tabId;
 
-chrome.tabs.query({ currentWindow: true, active: true }, function (tabs) {
-    if (tabs.length === 0) return;
-    console.log('tabId', tabs[0].id);
-    tabId = tabs[0].id;
-});
+chrome.devtools.panels.create(
+    'A11y Gradient',
+    '../assets/logo/icon16.png',
+    'html/devtools.html',
+    onPanelCreate
+);
 
-function handleError(error) {
-    if (error.isError) {
-        console.log(`Devtools error: ${error.code}`);
-    } else {
-        console.log(`JavaScript error: ${error.value}`);
-    }
+async function getCurrentTab() {
+    const queryOptions = { active: true, lastFocusedWindow: true };
+    // `tab` will either be a `tabs.Tab` instance or `undefined`.
+    const [tab] = await chrome.tabs.query(queryOptions);
+
+    return tab;
 }
 
-function colorBorder(value) {
-    console.log('qwwe', value);
-    document.body.style.border = `${value}px solid green`;
+async function onPanelCreate() {
+    tabId = (await getCurrentTab())?.id;
+    if (!tabId) return;
+    port = chrome.runtime.connect({ name: getPortName(tabId) });
+
+    port.onMessage.addListener(function (msg) {
+        switch (msg.type) {
+            case PANEL_REGISTER_FRAME: {
+                // Each frame should listen to onSelectionChanged events.
+                console.log('PANEL_REGISTER_FRAME');
+                chrome.devtools.panels.elements.onSelectionChanged.addListener(() =>
+                    setSelectedElement(msg.url)
+                );
+                // Populate initial opening.
+                setSelectedElement(msg.url);
+                break;
+            }
+
+            case UPDATE_SELECTED_ELEMENT: {
+                const { selectedElement, color } = msg;
+                updateElementSelected(selectedElement);
+                updateContrastColor(color);
+                break;
+            }
+
+            case UPDATE_CONTRAST_COLOR: {
+                const { color } = msg;
+                updateContrastColor(color);
+                break;
+            }
+        }
+    });
+
+    // Announce to content.js that they should register with their frame urls.
+    port.postMessage({ type: PANEL_INIT });
 }
 
 function updateElementSelected(node) {
@@ -79,8 +110,6 @@ async function handleMarker(e) {
     //  });
 }
 
-const port = chrome.runtime.connect({ name: A11Y_CONTEXT });
-
 function setSelectedElement(url) {
     console.log('abc', url);
     chrome.devtools.inspectedWindow.eval(
@@ -96,33 +125,6 @@ function setSelectedElement(url) {
     );
 }
 
-port.onMessage.addListener(function (msg) {
-    switch (msg.type) {
-        case PANEL_REGISTER_FRAME: {
-            // Each frame should listen to onSelectionChanged events.
-            chrome.devtools.panels.elements.onSelectionChanged.addListener(() =>
-                setSelectedElement(msg.url)
-            );
-            // Populate initial opening.
-            setSelectedElement(msg.url);
-            break;
-        }
-
-        case UPDATE_SELECTED_ELEMENT: {
-            const { selectedElement, color } = msg;
-            updateElementSelected(selectedElement);
-            updateContrastColor(color);
-            break;
-        }
-
-        case UPDATE_CONTRAST_COLOR: {
-            const { color } = msg;
-            updateContrastColor(color);
-            break;
-        }
-    }
-});
-
 window.addEventListener('DOMContentLoaded', () => {
     document.querySelector('.marker-input').addEventListener('change', handleMarker);
     document
@@ -130,7 +132,4 @@ window.addEventListener('DOMContentLoaded', () => {
         .addEventListener('change', handleChangeContrastAgainst);
     document.querySelector('.reset').addEventListener('click', handleReset);
     document.querySelector('.play').addEventListener('click', handlePlay);
-
-    // Announce to content.js that they should register with their frame urls.
-    port.postMessage({ type: PANEL_INIT });
 });

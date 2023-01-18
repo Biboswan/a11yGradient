@@ -5,7 +5,7 @@ let _selectedElement;
 let _markerGap = '15';
 let _colorContrastType = 'text-color';
 let contrastColor;
-const COLOR_TRANSPARENT = ['rgba(0,0,0,0)', 'transparent'];
+const COLOR_TRANSPARENT = ['rgba(0, 0, 0, 0)', 'transparent'];
 let canvas;
 
 let shouldRunContrast = 0;
@@ -47,11 +47,13 @@ function findBgElement(element) {
     let w = element.ownerDocument.defaultView;
     while (element) {
         color = w.getComputedStyle(element).getPropertyValue('background-color');
+        console.log('c', color);
         if (color && !COLOR_TRANSPARENT.includes(color)) {
             return { element, backgroundColor: color };
         }
 
         color = w.getComputedStyle(element).getPropertyValue('background-image');
+        console.log('c', color);
         if (color !== 'none') {
             return { element, backgroundImage: color };
         }
@@ -74,7 +76,6 @@ function createMessageForSelectedElement(element) {
 }
 
 function setSelectedElement(element) {
-    console.log('abs', element);
     if (!element) return;
     // If the selected element is the same, let handlers in other iframe contexts handle it instead.
     if (_selectedElement === undefined || element !== _selectedElement) {
@@ -119,25 +120,30 @@ function getOffset(el) {
 
 function findColorContrastRatios(canvas) {
     const gap = Number.parseInt(_markerGap);
-    const ctx = canvas.getContext('2d');
+    const ctx = canvas.getContext('2d', { willReadFrequently: true });
     let xmax = canvas.width;
     let ymax = canvas.height;
     const contrastRatios = [];
+    const w = _selectedElement?.ownerDocument.defaultView;
+    const fontSize = w.getComputedStyle(_selectedElement).getPropertyValue('font-size');
+    console.log('fs', fontSize);
     for (let y = 0; y <= ymax; y = y + gap) {
         contrastRatios.push([]);
         let lastIndex = contrastRatios.length - 1;
         for (let x = 0; x <= xmax; x = x + gap) {
-            contrastRatios[lastIndex].push(ctx.getImageData(x, y, 1, 1).data);
+            const [r, g, b, a] = ctx.getImageData(x, y, 1, 1).data;
+            console.log('r', r);
+            contrastRatios[lastIndex].push([r, g, b, a]);
         }
     }
-
+    console.log(contrastRatios);
     return contrastRatios;
 }
 
 function play() {
     shouldRunContrast = 1;
     const { element: parentBgElement, backgroundColor, backgroundImage } =
-        colorContrastType !== 'element-border'
+        _colorContrastType !== 'element-border'
             ? findBgElement(_selectedElement)
             : findBgElement(_selectedElement.parentElement);
     canvas = document.createElement('canvas');
@@ -149,21 +155,20 @@ function play() {
     canvas.style.height = sourceHeight + 'px';
     canvas.style.width = sourceWidth + 'px';
     if (backgroundColor) {
+        console.log('bg', backgroundColor);
         canvas.style.backgroundColor = backgroundColor;
     } else {
+        console.log('bg', backgroundImage);
         canvas.style.backgroundImage = backgroundImage;
     }
 
     const contrastRatios = findColorContrastRatios(canvas);
-    console.log('t', contrastRatios);
     // const { left, top } = getOffset(parentBgElement);
 }
 
 function reset() {
     shouldRunContrast = 0;
 }
-
-//setSelectedElement(document?.body);
 
 chrome.runtime.onMessage.addListener(function (message) {
     switch (message.type) {
@@ -172,6 +177,7 @@ chrome.runtime.onMessage.addListener(function (message) {
             chrome.runtime.sendMessage({ type: PANEL_REGISTER_FRAME, url: window.location.href });
             break;
         case SET_COLOR_CONTRAST:
+            console.log('SET_COLOR_CONTRAST', message.value);
             setColorContrastType(message.value);
             chrome.runtime.sendMessage({ type: UPDATE_CONTRAST_COLOR, color: contrastColor });
             break;
@@ -179,8 +185,8 @@ chrome.runtime.onMessage.addListener(function (message) {
             setMarkerGap(message.value);
             break;
         case UPDATE_SHOULD_RUN_CONTRAST:
-            const { value } = message;
-            if (value === true) {
+            const { image } = message;
+            if (image) {
                 play();
             } else {
                 reset();
