@@ -1,6 +1,7 @@
 const path = require('path');
 const CopyPlugin = require('copy-webpack-plugin');
 const MiniCssExtractPlugin = require('mini-css-extract-plugin');
+const CssMinimizerPlugin = require('css-minimizer-webpack-plugin');
 
 module.exports = function (env) {
     return {
@@ -23,6 +24,10 @@ module.exports = function (env) {
                     use: ['babel-loader'],
                     exclude: /node_modules/,
                 },
+                {
+                    test: /.s?css$/,
+                    use: [MiniCssExtractPlugin.loader, 'css-loader', 'sass-loader'],
+                },
                 // {
                 //     test: /\.(scss|css)$/,
                 //     use: [MiniCssExtractPlugin.loader, 'css-loader'],
@@ -32,10 +37,18 @@ module.exports = function (env) {
         resolve: {
             extensions: ['.js'],
         },
+        optimization: {
+            minimizer: [
+                // For webpack@5 you can use the `...` syntax to extend existing minimizers (i.e. `terser-webpack-plugin`), uncomment the next line
+                // `...`,
+                new CssMinimizerPlugin(),
+            ],
+        },
         plugins: [
             // new MiniCssExtractPlugin({
             //     filename: 'css/[name].css',
             // }),
+            new MiniCssExtractPlugin(),
             new CopyPlugin({
                 patterns: [
                     {
