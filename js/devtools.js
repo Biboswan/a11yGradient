@@ -8,6 +8,7 @@ const {
     UPDATE_CONTRAST_COLOR,
     SET_MARKER_GAP,
     UPDATE_SHOULD_RUN_CONTRAST,
+    UPDATE_MARKER_HOVERED,
 } = messageTypes;
 
 let port, tabId;
@@ -18,6 +19,11 @@ chrome.devtools.panels.create(
     'html/devtools.html',
     onPanelCreate
 );
+
+const bgColor = document.querySelector('#hovered-bgColor');
+const cr = document.querySelector('#hovered-contrast-ratio');
+const hoverAA = document.querySelector('#hovered-aa');
+const hoverAAA = document.querySelector('#hovered-aaa');
 
 async function getCurrentTab() {
     const queryOptions = { active: true, lastFocusedWindow: true };
@@ -57,11 +63,28 @@ async function onPanelCreate() {
                 updateContrastColor(color);
                 break;
             }
+
+            case UPDATE_MARKER_HOVERED: {
+                const { hex, WCAG_AA, WCAG_AAA, contrastRatio } = msg;
+
+                updateMarkerHovered(hex, WCAG_AA, WCAG_AAA, contrastRatio);
+            }
         }
     });
 
     // Announce to content.js that they should register with their frame urls.
     port.postMessage({ type: PANEL_INIT });
+}
+
+function updateMarkerHovered(hex, WCAG_AA, WCAG_AAA, contrastRatio) {
+    bgColor.style.backgroundColor = `#${hex}`;
+    cr.innerText = contrastRatio;
+    hoverAA.innerHTML = `<img src=${
+        WCAG_AA ? '/assets/icons/check.svg' : '/assets/icons/times.svg'
+    }/>`;
+    hoverAAA.innerHTML = `<img src=${
+        WCAG_AAA ? '/assets/icons/check.svg' : '/assets/icons/times.svg'
+    }/>`;
 }
 
 function updateElementSelected(node) {
@@ -85,6 +108,10 @@ function handleChangeContrastAgainst(e) {
 }
 
 function handleReset(e) {
+    bgColor.style.backgroundColor = 'none';
+    cr.innerHTML = '';
+    hoverAA.innerHTML = '';
+    hoverAAA.innerHTML = '';
     port.postMessage({ type: UPDATE_SHOULD_RUN_CONTRAST, value: false });
 }
 
@@ -92,22 +119,10 @@ function handlePlay(e) {
     port.postMessage({ type: UPDATE_SHOULD_RUN_CONTRAST, value: true });
 }
 
-async function handleMarker(e) {
+function handleMarker(e) {
     const { value } = e.target;
-    port.postMessage({ type: SET_MARKER_GAP, value });
-    //     console.log('val',value);
-    //     console.log('chrome',chrome);
 
-    //     //console.log('browser',browser);
-    //     chrome.scripting.executeScript({
-    //           target: {
-    //             tabId,
-    //           },
-    //           args: [value],
-    //           func: colorBorder
-    // },(res,error) => {
-    //     console.log('err',error);
-    //  });
+    port.postMessage({ type: SET_MARKER_GAP, value });
 }
 
 function setSelectedElement(url) {

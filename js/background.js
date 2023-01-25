@@ -6,7 +6,7 @@ const portName2Port = new Map();
 const portName2Window = new Map();
 
 async function doCaptureForTab(tabId, winId) {
-    const dataUri = await chrome.tabs.captureVisibleTab(winId, { format: 'png' }, cbf);
+    const dataUri = await chrome.tabs.captureVisibleTab(winId, { format: 'png' });
     chrome.tabs.sendMessage(tabId, { type: UPDATE_SHOULD_RUN_CONTRAST, image: dataUri });
 }
 
@@ -14,13 +14,15 @@ async function handlePortMessages(message, port) {
     const { type } = message;
     const { name } = port;
 
-    if (!tabId) return;
-
     const tabId = parseInt(name.split(':')[1]);
 
     switch (type) {
         case UPDATE_SHOULD_RUN_CONTRAST:
-            message.value && doCaptureForTab(tabId, portName2Window.get(name));
+            if (message.value) {
+                doCaptureForTab(tabId, portName2Window.get(name));
+            } else {
+                chrome.tabs.sendMessage(tabId, message);
+            }
             break;
         default:
             chrome.tabs.sendMessage(tabId, message);
@@ -47,6 +49,7 @@ chrome.runtime.onConnect.addListener(passMessagesFromDevtoolsToTab);
 
 function sendMessagesToDevTools(message, sender, sendResponse) {
     const portName = getPortName(sender.tab.id);
+    console.log('portname', portName);
     portName2Window.set(portName, sender.tab.windowId);
     portName2Port.get(portName)?.postMessage(message);
     //sendResponse({});

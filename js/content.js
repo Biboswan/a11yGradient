@@ -1,14 +1,33 @@
 import ColorContrastChecker from 'color-contrast-checker';
+import rgbHex from 'rgb-hex';
 import { messageTypes } from './common.js';
 
-let _selectedElement;
-let _markerGap = '15';
-let _colorContrastType = 'text-color';
-let contrastColor;
 const COLOR_TRANSPARENT = ['rgba(0, 0, 0, 0)', 'transparent'];
-let canvas;
 
-let shouldRunContrast = 0;
+let _selectedElement,
+    contrastColor,
+    _contrastData,
+    _colorContrastType = 'text-color',
+    _bgElement,
+    _markerGap = '20',
+    shouldRunContrast = 0;
+
+const canvas = document.createElement('canvas');
+const ctx = canvas.getContext('2d', { willReadFrequently: true });
+const dirtyImage = document.createElement('img');
+const snapshot = document.createElement('img');
+const link = document.createElement('link');
+link.rel = 'stylesheet';
+link.type = 'text/css';
+link.href = chrome.runtime.getURL('css/content.css');
+const box = document.createElement('div');
+box.classList.add('a11y-gradient-box');
+
+window.addEventListener('DOMContentLoaded', handleDOMContentLoaded);
+
+const ccc = new ColorContrastChecker();
+
+snapshot.onload = snapshotLoaded;
 
 const {
     PANEL_INIT,
@@ -18,6 +37,7 @@ const {
     UPDATE_CONTRAST_COLOR,
     SET_MARKER_GAP,
     UPDATE_SHOULD_RUN_CONTRAST,
+    UPDATE_MARKER_HOVERED,
 } = messageTypes;
 
 const colorTypeToStyle = {
@@ -26,7 +46,59 @@ const colorTypeToStyle = {
     'border-color': 'border-color',
 };
 
-const ccc = new ColorContrastChecker();
+// class AllyGradient extends HTMLElement {
+//     constructor() {
+//         super();
+
+//         this.attachShadow({ mode: 'open' });
+//         this.handleMouseOver = this.handleMouseOver.bind(this);
+
+//         const gap = this.getAttribute(markerGap);
+//         const box = document.createElement('div');
+//         box.classList.add('a11y-gradient-box');
+//         const { left, top, width, height } = JSON.parse(this.getAttribute('boxConfig'));
+//         box.style.width = width + 'px';
+//         box.style.height = height + 'px';
+//         box.style.left = left + 'px';
+//         box.style.top = top + 'px';
+//         box.style.zIndex = Number.MAX_SAFE_INTEGER;
+
+//         for (let y = 0; y <= height; y = y + gap) {
+//             for (let x = 0; x <= width; x = x + gap) {
+//                 const dot = document.createElement('dot');
+//                 dot.classList.add('dot');
+//                 dot.style.left = x + 'px';
+//                 dot.style.top = y + 'px';
+//                 dot.dataset.x = x;
+//                 dot.dataset.y = y;
+//                 box.appendChild(dot);
+//             }
+//         }
+
+//         this.shadowRoot.append(style, box);
+//     }
+
+//     handleMouseOver(e) {
+//         console.log('e', e.target);
+//     }
+
+//     connectedCallback() {
+//         box.addEventListener('mouseover', this.handleMouseOver);
+//     }
+
+//     disconnectedCallback() {
+//         const box = document.querySelector('.box');
+//         box.removeEventListener('mouseover', this.handleMouseOver);
+//     }
+// }
+
+function handleDOMContentLoaded() {
+    const head = document.getElementsByTagName('HEAD')[0];
+    head.appendChild(link);
+    document.body.insertAdjacentElement('afterend', box);
+}
+
+//window.customElements.define('ally-gradient', AllyGradient);
 
 function colorForElement(element, what) {
     let color = null;
@@ -47,15 +119,15 @@ function findBgElement(element) {
     let w = element.ownerDocument.defaultView;
     while (element) {
         color = w.getComputedStyle(element).getPropertyValue('background-color');
-        console.log('c', color);
+
         if (color && !COLOR_TRANSPARENT.includes(color)) {
-            return { element, backgroundColor: color };
+            return element;
         }
 
         color = w.getComputedStyle(element).getPropertyValue('background-image');
-        console.log('c', color);
+
         if (color !== 'none') {
-            return { element, backgroundImage: color };
+            return element;
         }
         element = element.parentElement;
     }
@@ -67,7 +139,6 @@ function createMessageForSelectedElement(element) {
         return { type: UPDATE_SELECTED_ELEMENT, selectedElement: {} };
     }
 
-    console.log('UPDATE_SELECTED_ELEMENT', element);
     return {
         type: UPDATE_SELECTED_ELEMENT,
         selectedElement: element.outerHTML,
@@ -81,7 +152,6 @@ function setSelectedElement(element) {
     if (_selectedElement === undefined || element !== _selectedElement) {
         _selectedElement = element;
         contrastColor = colorForElement(_selectedElement, colorTypeToStyle[_colorContrastType]);
-        console.log('contrast', contrastColor);
         chrome.runtime.sendMessage(createMessageForSelectedElement(element));
     }
 }
@@ -110,70 +180,126 @@ function setMarkerGap(markerGap) {
     _markerGap = markerGap;
 }
 
-function getOffset(el) {
-    const rect = el.getBoundingClientRect();
-    return {
-        left: rect.left + window.scrollX,
-        top: rect.top + window.scrollY,
-    };
+function handleMouseOver(e) {
+    const { dataset } = e.target;
+    if ('x' in dataset) {
+        const { x, y } = dataset;
+
+        const { hex, WCAG_AA, WCAG_AAA, contrastRatio } = _contrastData[y / _markerGap][
+            x / _markerGap
+        ];
+        chrome.runtime.sendMessage({
+            type: UPDATE_MARKER_HOVERED,
+            hex,
+            WCAG_AA,
+            WCAG_AAA,
+            contrastRatio,
+        });
+    }
 }
 
-function findColorContrastRatios(canvas) {
-    const gap = Number.parseInt(_markerGap);
-    const ctx = canvas.getContext('2d', { willReadFrequently: true });
-    let xmax = canvas.width;
-    let ymax = canvas.height;
-    const contrastRatios = [];
-    const w = _selectedElement?.ownerDocument.defaultView;
-    const fontSize = w.getComputedStyle(_selectedElement).getPropertyValue('font-size');
-    console.log('fs', fontSize);
-    for (let y = 0; y <= ymax; y = y + gap) {
-        contrastRatios.push([]);
-        let lastIndex = contrastRatios.length - 1;
-        for (let x = 0; x <= xmax; x = x + gap) {
-            const [r, g, b, a] = ctx.getImageData(x, y, 1, 1).data;
-            console.log('r', r);
-            contrastRatios[lastIndex].push([r, g, b, a]);
+function createOverlap() {
+    const { left, top, width, height } = _bgElement.getBoundingClientRect();
+    // const elem = document.createElement('ally-gradient', {
+    //     markerGap: _markerGap,
+    //     boxConfig: JSON.stringify({ left, top, width, height }),
+    // });
+    // const shadowRoot = document.createElement('div');
+    // shadowRoot.attachShadow({ mode: 'open' });
+    box.addEventListener('mouseover', handleMouseOver, false);
+    const gap = parseInt(_markerGap);
+    box.classList.remove('a11y-gradient-box-reset');
+    box.style.width = width + 'px';
+    box.style.height = height + 'px';
+    box.style.left = left + 'px';
+    box.style.top = top + 'px';
+
+    for (let y = 0; y <= height; y = y + gap) {
+        for (let x = 0; x <= width; x = x + gap) {
+            const dot = document.createElement('dot');
+            dot.classList.add('a11y-gradient-dot');
+
+            dot.style.left = x + 'px';
+            dot.style.top = y + 'px';
+            dot.dataset.x = x;
+            dot.dataset.y = y;
+            box.appendChild(dot);
         }
     }
-    console.log(contrastRatios);
-    return contrastRatios;
 }
 
-function play() {
-    shouldRunContrast = 1;
-    const { element: parentBgElement, backgroundColor, backgroundImage } =
+//think of locking logic
+function findColorContrastRatios(element) {
+    const gap = Number.parseInt(_markerGap);
+    const { left, top, right, bottom } = element.getBoundingClientRect();
+
+    const contrastData = [];
+
+    const w = _selectedElement?.ownerDocument.defaultView;
+    const fontSizeStr = w.getComputedStyle(_selectedElement).getPropertyValue('font-size');
+    ccc.fontSize = fontSizeStr.substring(0, fontSizeStr.length - 2);
+
+    const contrastColorHex = rgbHex(contrastColor);
+    const l1 = ccc.hexToLuminance(contrastColorHex.substring(0, 6));
+
+    //console.log('fs', fontSize);
+    for (let y = top; y <= bottom; y = y + gap) {
+        contrastData.push([]);
+        let lastIndex = contrastData.length - 1;
+        for (let x = left; x <= right; x = x + gap) {
+            const [r, g, b, a] = ctx.getImageData(x, y, 1, 1).data;
+            const hex = rgbHex(r, g, b);
+            const l2 = ccc.hexToLuminance(hex);
+            const contrastRatio = ccc.getContrastRatio(l1, l2);
+            const { WCAG_AA, WCAG_AAA } = ccc.verifyContrastRatio(contrastRatio);
+            contrastData[lastIndex].push({ x, y, hex, WCAG_AA, WCAG_AAA, contrastRatio });
+        }
+    }
+
+    return contrastData;
+}
+
+function snapshotLoaded() {
+    canvas.height = snapshot.naturalWidth;
+    canvas.width = snapshot.naturalHeight;
+
+    const cctx = canvas.getContext('2d');
+    cctx.drawImage(dirtyImage, 0, 0, 1, 1, 0, 0, 1, 1); // taint the canvas to prevent malicious website (or framework) from stealing screenshots while color pick runs. To verify, select the canvas element and $0.toDataURL() to see an exception
+    cctx.drawImage(snapshot, 0, 0, innerWidth, innerHeight);
+
+    ctx.drawImage(snapshot, 0, 0);
+
+    updateMarkers();
+    createOverlap();
+}
+
+function updateMarkers() {
+    _bgElement =
         _colorContrastType !== 'element-border'
             ? findBgElement(_selectedElement)
             : findBgElement(_selectedElement.parentElement);
-    canvas = document.createElement('canvas');
-    const sourceWidth = parentBgElement.clientWidth;
-    const sourceHeight = parentBgElement.clientHeight;
+    console.log('_bg', _bgElement);
 
-    canvas.width = sourceWidth;
-    canvas.height = sourceHeight;
-    canvas.style.height = sourceHeight + 'px';
-    canvas.style.width = sourceWidth + 'px';
-    if (backgroundColor) {
-        console.log('bg', backgroundColor);
-        canvas.style.backgroundColor = backgroundColor;
-    } else {
-        console.log('bg', backgroundImage);
-        canvas.style.backgroundImage = backgroundImage;
-    }
+    _contrastData = findColorContrastRatios(_bgElement || _selectedElement.ownerDocument.body);
+}
 
-    const contrastRatios = findColorContrastRatios(canvas);
-    // const { left, top } = getOffset(parentBgElement);
+function play(image) {
+    shouldRunContrast = 1;
+    snapshot.src = image;
 }
 
 function reset() {
     shouldRunContrast = 0;
+    box.classList.add('a11y-gradient-box-reset');
+    box.innerHTML = '';
+    box.removeEventListener('mouseover', handleMouseOver, false);
 }
 
 chrome.runtime.onMessage.addListener(function (message) {
     switch (message.type) {
         case PANEL_INIT:
             console.log('init');
+            dirtyImage.src = chrome.runtime.getURL('assets/close.png');
             chrome.runtime.sendMessage({ type: PANEL_REGISTER_FRAME, url: window.location.href });
             break;
         case SET_COLOR_CONTRAST:
@@ -187,7 +313,7 @@ chrome.runtime.onMessage.addListener(function (message) {
         case UPDATE_SHOULD_RUN_CONTRAST:
             const { image } = message;
             if (image) {
-                play();
+                play(image);
             } else {
                 reset();
             }

@@ -32,7 +32,7 @@ body {
 
 .marker-input {
     padding: 20px 32px;
-    width:105px;
+    width: 105px;
     text-align: right;
     background-color: var(--color-white);
 }
@@ -113,7 +113,7 @@ body {
 /* .element-selected::-webkit-details-marker {
     display: none
 } */
-  
+
 /* .element-selected::after {
     content: ' ►';
 }
@@ -122,3 +122,22 @@ body {
     content: " ▼";
 } */
 
+.hovered-info-row {
+    display: flex;
+    justify-content: space-between;
+}
+
+#hovered-bgColor {
+    width: 40px;
+    height: 26px;
+}
+
+#hovered-marker-section {
+    margin-top: 45px;
+}
+
+#hovered-info-container {
+    display: grid;
+    row-gap: 16px;
+    margin-top: 52px;
+}

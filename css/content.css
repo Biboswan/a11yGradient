@@ -1,0 +1,17 @@
+.a11y-gradient-box {
+    position: fixed;
+    z-index: 2147483647;
+}
+
+.a11y-gradient-dot {
+    width: 15px;
+    height: 5px;
+    background-color: black;
+    position: absolute;
+}
+
+.a11y-gradient-box-reset {
+    width: 0;
+    height: 0;
+    display: none;
+}
