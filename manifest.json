@@ -26,11 +26,11 @@
     },
     "web_accessible_resources": [
         {
-            "resources": ["assets/close.png", "css/content.css"],
+            "resources": ["css/content.css"],
             "matches": ["https://*/*"]
         }
     ],
     "devtools_page": "html/devtools.html",
-    "permissions": ["tabs", "scripting", "activeTab"],
+    "permissions": ["tabs", "activeTab"],
     "host_permissions": ["<all_urls>"]
 }

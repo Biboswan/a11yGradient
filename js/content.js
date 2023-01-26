@@ -291,7 +291,6 @@ function updateMarkers() {
         _colorContrastType !== 'element-border'
             ? findBgElement(_selectedElement)
             : findBgElement(_selectedElement.parentElement);
-    console.log('_bg', _bgElement);
 
     _contrastData = findColorContrastRatios(_bgElement || _selectedElement.ownerDocument.body);
 }
@@ -319,8 +318,7 @@ function reset() {
 chrome.runtime.onMessage.addListener(function (message) {
     switch (message.type) {
         case PANEL_INIT:
-            console.log('init');
-            dirtyImage.src = chrome.runtime.getURL('assets/close.png');
+            //dirtyImage.src = chrome.runtime.getURL('assets/close.png');
             chrome.runtime.sendMessage({ type: PANEL_REGISTER_FRAME, url: window.location.href });
             break;
         case SET_COLOR_CONTRAST:

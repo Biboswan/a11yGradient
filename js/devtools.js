@@ -133,8 +133,8 @@ function setSelectedElement(url) {
             frameURL: url,
         },
         (err, info) => {
-            console.log('err', err);
-            console.log('info', info);
+            err && console.error('err', err);
+            info && console.log('info', info);
         }
     );
 }
