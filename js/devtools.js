@@ -108,7 +108,7 @@ function handleChangeContrastAgainst(e) {
 }
 
 function handleReset(e) {
-    bgColor.style.backgroundColor = 'none';
+    bgColor.style.backgroundColor = 'transparent';
     cr.innerHTML = '';
     hoverAA.innerHTML = '';
     hoverAAA.innerHTML = '';
@@ -126,7 +126,6 @@ function handleMarker(e) {
 }
 
 function setSelectedElement(url) {
-    console.log('abc', url);
     chrome.devtools.inspectedWindow.eval(
         'setSelectedElement($0)',
         {

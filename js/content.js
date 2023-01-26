@@ -9,7 +9,7 @@ let _selectedElement,
     _contrastData,
     _colorContrastType = 'text-color',
     _bgElement,
-    _markerGap = '20',
+    _markerGap = 20,
     shouldRunContrast = 0;
 
 const canvas = document.createElement('canvas');
@@ -177,7 +177,7 @@ function setColorContrastType(colorContrastType) {
 }
 
 function setMarkerGap(markerGap) {
-    _markerGap = markerGap;
+    _markerGap = parseInt(markerGap);
 }
 
 function handleMouseOver(e) {
@@ -207,15 +207,15 @@ function createOverlap() {
     // const shadowRoot = document.createElement('div');
     // shadowRoot.attachShadow({ mode: 'open' });
     box.addEventListener('mouseover', handleMouseOver, false);
-    const gap = parseInt(_markerGap);
+
     box.classList.remove('a11y-gradient-box-reset');
     box.style.width = width + 'px';
     box.style.height = height + 'px';
     box.style.left = left + 'px';
     box.style.top = top + 'px';
 
-    for (let y = 0; y <= height; y = y + gap) {
-        for (let x = 0; x <= width; x = x + gap) {
+    for (let y = 0; y <= height; y = y + _markerGap) {
+        for (let x = 0; x <= width; x = x + _markerGap) {
             const dot = document.createElement('dot');
             dot.classList.add('a11y-gradient-dot');
 
@@ -230,8 +230,7 @@ function createOverlap() {
 
 //think of locking logic
 function findColorContrastRatios(element) {
-    const gap = Number.parseInt(_markerGap);
-    const { left, top, right, bottom } = element.getBoundingClientRect();
+    const { left, top, width, height } = element.getBoundingClientRect();
 
     const contrastData = [];
 
@@ -243,16 +242,18 @@ function findColorContrastRatios(element) {
     const l1 = ccc.hexToLuminance(contrastColorHex.substring(0, 6));
 
     //console.log('fs', fontSize);
-    for (let y = top; y <= bottom; y = y + gap) {
+    for (let y = 0; y <= height; y = y + _markerGap) {
         contrastData.push([]);
+        const yc = y + top;
         let lastIndex = contrastData.length - 1;
-        for (let x = left; x <= right; x = x + gap) {
-            const [r, g, b, a] = ctx.getImageData(x, y, 1, 1).data;
+        for (let x = 0; x <= width; x = x + _markerGap) {
+            const xc = x + left;
+            const [r, g, b, a] = ctx.getImageData(xc, yc, 1, 1).data;
             const hex = rgbHex(r, g, b);
             const l2 = ccc.hexToLuminance(hex);
             const contrastRatio = ccc.getContrastRatio(l1, l2);
             const { WCAG_AA, WCAG_AAA } = ccc.verifyContrastRatio(contrastRatio);
-            contrastData[lastIndex].push({ x, y, hex, WCAG_AA, WCAG_AAA, contrastRatio });
+            contrastData[lastIndex].push({ x: xc, y: yc, hex, WCAG_AA, WCAG_AAA, contrastRatio });
         }
     }
 
@@ -260,14 +261,26 @@ function findColorContrastRatios(element) {
 }
 
 function snapshotLoaded() {
-    canvas.height = snapshot.naturalWidth;
-    canvas.width = snapshot.naturalHeight;
+    canvas.height = innerHeight;
+    canvas.width = innerWidth;
+    canvas.style.width = innerWidth + 'px';
+    canvas.style.height = innerHeight + 'px';
 
-    const cctx = canvas.getContext('2d');
-    cctx.drawImage(dirtyImage, 0, 0, 1, 1, 0, 0, 1, 1); // taint the canvas to prevent malicious website (or framework) from stealing screenshots while color pick runs. To verify, select the canvas element and $0.toDataURL() to see an exception
-    cctx.drawImage(snapshot, 0, 0, innerWidth, innerHeight);
+    // // const cctx = canvas.getContext('2d');
+    // // cctx.drawImage(dirtyImage, 0, 0, 1, 1, 0, 0, 1, 1); // taint the canvas to prevent malicious website (or framework) from stealing screenshots while color pick runs. To verify, select the canvas element and $0.toDataURL() to see an exception
+    // // cctx.drawImage(snapshot, 0, 0, innerWidth, innerHeight);
 
-    ctx.drawImage(snapshot, 0, 0);
+    ctx.drawImage(
+        snapshot,
+        0,
+        0,
+        snapshot.naturalWidth,
+        snapshot.naturalHeight,
+        0,
+        0,
+        innerWidth,
+        innerHeight
+    );
 
     updateMarkers();
     createOverlap();
@@ -288,11 +301,18 @@ function play(image) {
     snapshot.src = image;
 }
 
+function clearCanvas() {
+    ctx.reset && ctx.reset();
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+}
+
 function reset() {
     shouldRunContrast = 0;
     box.classList.add('a11y-gradient-box-reset');
     box.innerHTML = '';
     box.removeEventListener('mouseover', handleMouseOver, false);
+    clearCanvas();
+    _contrastData = null;
 }
 
 chrome.runtime.onMessage.addListener(function (message) {
