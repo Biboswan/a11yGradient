@@ -297,6 +297,7 @@ function updateMarkers() {
 }
 
 function play(image) {
+    reset();
     shouldRunContrast = 1;
     snapshot.src = image;
 }
@@ -308,11 +309,11 @@ function clearCanvas() {
 
 function reset() {
     shouldRunContrast = 0;
+    _contrastData = null;
+    box.removeEventListener('mouseover', handleMouseOver, false);
     box.classList.add('a11y-gradient-box-reset');
     box.innerHTML = '';
-    box.removeEventListener('mouseover', handleMouseOver, false);
     clearCanvas();
-    _contrastData = null;
 }
 
 chrome.runtime.onMessage.addListener(function (message) {
