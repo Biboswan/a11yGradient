@@ -19,6 +19,10 @@ async function handlePortMessages(message, port) {
     switch (type) {
         case UPDATE_SHOULD_RUN_CONTRAST:
             if (message.value) {
+                //doing reset and clearing previous markers if any before taking new shot;
+                await chrome.tabs.sendMessage(tabId, {
+                    type: UPDATE_SHOULD_RUN_CONTRAST,
+                });
                 doCaptureForTab(tabId, portName2Window.get(name));
             } else {
                 chrome.tabs.sendMessage(tabId, message);
@@ -52,7 +56,6 @@ function sendMessagesToDevTools(message, sender, sendResponse) {
     console.log('portname', portName);
     portName2Window.set(portName, sender.tab.windowId);
     portName2Port.get(portName)?.postMessage(message);
-    //sendResponse({});
 }
 
 // Pass content script messages back to devtools

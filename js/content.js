@@ -14,7 +14,7 @@ let _selectedElement,
 
 const canvas = document.createElement('canvas');
 const ctx = canvas.getContext('2d', { willReadFrequently: true });
-const dirtyImage = document.createElement('img');
+//const dirtyImage = document.createElement('img');
 const snapshot = document.createElement('img');
 const link = document.createElement('link');
 link.rel = 'stylesheet';
@@ -296,7 +296,6 @@ function updateMarkers() {
 }
 
 function play(image) {
-    reset();
     shouldRunContrast = 1;
     snapshot.src = image;
 }
@@ -307,6 +306,7 @@ function clearCanvas() {
 }
 
 function reset() {
+    if (shouldRunContrast === 0) return;
     shouldRunContrast = 0;
     _contrastData = null;
     box.removeEventListener('mouseover', handleMouseOver, false);
@@ -315,7 +315,7 @@ function reset() {
     clearCanvas();
 }
 
-chrome.runtime.onMessage.addListener(function (message) {
+chrome.runtime.onMessage.addListener(function (message, sender, sendResponse) {
     switch (message.type) {
         case PANEL_INIT:
             //dirtyImage.src = chrome.runtime.getURL('assets/close.png');
@@ -336,6 +336,7 @@ chrome.runtime.onMessage.addListener(function (message) {
             } else {
                 reset();
             }
+            sendResponse({});
             break;
     }
 });
