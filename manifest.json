@@ -1,6 +1,6 @@
 {
     "name": "A11y Gradient",
-    "description": "Browser devtools checks color contrast between background and text colors. But it is limited to monochromatic colours. A11y Gradient deals with gradients too.",
+    "description": "It gives you contrast ratio (accessibility standards) for text against each pixel of multi-colored backgrounds.",
     "version": "0.1.0",
     "version_name": "0.1.0-alpha",
     "manifest_version": 3,
