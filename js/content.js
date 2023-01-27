@@ -43,7 +43,7 @@ const {
 const colorTypeToStyle = {
     'text-color': 'color',
     'text-border': '-webkit-text-stroke-color',
-    'border-color': 'border-color',
+    'element-border': 'border-color',
 };
 
 // class AllyGradient extends HTMLElement {
@@ -117,6 +117,11 @@ function colorForElement(element, what) {
 function findBgElement(element) {
     let color = null;
     let w = element.ownerDocument.defaultView;
+
+    if (_colorContrastType === 'element-border') {
+        element = element.parentElement;
+    }
+
     while (element) {
         color = w.getComputedStyle(element).getPropertyValue('background-color');
 
@@ -171,7 +176,7 @@ function setColorContrastType(colorContrastType) {
             );
             break;
         case 'element-border':
-            contrastColor = colorForElement(_selectedElement, colorTypeToStyle['border-color']);
+            contrastColor = colorForElement(_selectedElement, colorTypeToStyle['element-border']);
             break;
     }
 }
