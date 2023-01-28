@@ -244,7 +244,7 @@ function findColorContrastRatios(element) {
     ccc.fontSize = fontSizeStr.substring(0, fontSizeStr.length - 2);
 
     const contrastColorHex = rgbHex(contrastColor);
-    const l1 = ccc.hexToLuminance(contrastColorHex.substring(0, 6));
+    const l1 = ccc.hexToLuminance(`#${contrastColorHex.substring(0, 6)}`);
 
     //console.log('fs', fontSize);
     for (let y = 0; y <= height; y = y + _markerGap) {
@@ -255,7 +255,7 @@ function findColorContrastRatios(element) {
             const xc = x + left;
             const [r, g, b, a] = ctx.getImageData(xc, yc, 1, 1).data;
             const hex = rgbHex(r, g, b);
-            const l2 = ccc.hexToLuminance(hex);
+            const l2 = ccc.hexToLuminance(`#${hex}`);
             const contrastRatio = ccc.getContrastRatio(l1, l2);
             const { WCAG_AA, WCAG_AAA } = ccc.verifyContrastRatio(contrastRatio);
             contrastData[lastIndex].push({ x: xc, y: yc, hex, WCAG_AA, WCAG_AAA, contrastRatio });
