@@ -31,6 +31,6 @@
         }
     ],
     "devtools_page": "html/devtools.html",
-    "permissions": ["tabs", "activeTab"],
+    "permissions": ["tabs"],
     "host_permissions": ["<all_urls>"]
 }
