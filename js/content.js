@@ -219,18 +219,20 @@ function createOverlap() {
     box.style.left = left + 'px';
     box.style.top = top + 'px';
 
+    const dots = [];
+
     for (let y = 0; y <= height; y = y + _markerGap) {
         for (let x = 0; x <= width; x = x + _markerGap) {
             const dot = document.createElement('dot');
             dot.classList.add('a11y-gradient-dot');
-
             dot.style.left = x + 'px';
             dot.style.top = y + 'px';
             dot.dataset.x = x;
             dot.dataset.y = y;
-            box.appendChild(dot);
+            dots.push(dot);
         }
     }
+    box.append(...dots);
 }
 
 //think of locking logic
