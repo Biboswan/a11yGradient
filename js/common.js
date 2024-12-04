@@ -20,3 +20,29 @@ export const messageTypes = {
 };
 
 export const getPortName = id => `${A11Y_CONTEXT}:${id}`;
+
+export function isLargeFont(fontSize, fontWeight) {
+    const boldWeights = ['bold', 'bolder', '600', '700', '800', '900'];
+
+    const fontSizePx = parseFloat(fontSize.replace('px', ''));
+    const isBold =
+        boldWeights.indexOf(fontWeight) !== -1 || (!isNaN(fontWeight) && Number(fontWeight) >= 600);
+
+    const fontSizePt = (fontSizePx * 72) / 96;
+    if (isBold) {
+        return fontSizePt >= 14;
+    }
+    return fontSizePt >= 18;
+}
+
+const contrastThresholds = {
+    largeFont: { aa: 3.0, aaa: 4.5 },
+    normalFont: { aa: 4.5, aaa: 7.0 },
+};
+
+export function getContrastThreshold(fontSize, fontWeight) {
+    if (isLargeFont(fontSize, fontWeight)) {
+        return contrastThresholds.largeFont;
+    }
+    return contrastThresholds.normalFont;
+}

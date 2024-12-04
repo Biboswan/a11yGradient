@@ -79,12 +79,8 @@ async function onPanelCreate() {
 function updateMarkerHovered(hex, WCAG_AA, WCAG_AAA, contrastRatio) {
     bgColor.style.backgroundColor = `#${hex}`;
     cr.innerText = contrastRatio;
-    hoverAA.innerHTML = `<img src=${
-        WCAG_AA ? '/assets/icons/check.svg' : '/assets/icons/times.svg'
-    }/>`;
-    hoverAAA.innerHTML = `<img src=${
-        WCAG_AAA ? '/assets/icons/check.svg' : '/assets/icons/times.svg'
-    }/>`;
+    hoverAA.innerHTML = `<img src="${chrome.runtime.getURL('assets/icons/' + (WCAG_AA ? 'check.svg' : 'times.svg'))}"/>`;
+    hoverAAA.innerHTML = `<img src="${chrome.runtime.getURL('assets/icons/' + (WCAG_AAA ? 'check.svg' : 'times.svg'))}"/>`;
 }
 
 function updateElementSelected(node) {
