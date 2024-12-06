@@ -12,6 +12,7 @@ const {
 } = messageTypes;
 
 let port, tabId;
+let selectionChangedListeners = new Set();
 
 chrome.devtools.panels.create(
     'A11y Gradient',
@@ -20,10 +21,17 @@ chrome.devtools.panels.create(
     onPanelCreate
 );
 
-const bgColor = document.querySelector('#hovered-bgColor');
-const cr = document.querySelector('#hovered-contrast-ratio');
-const hoverAA = document.querySelector('#hovered-aa');
-const hoverAAA = document.querySelector('#hovered-aaa');
+// Cache DOM elements
+const elements = {
+    bgColor: document.querySelector('#hovered-bgColor'),
+    cr: document.querySelector('#hovered-contrast-ratio'),
+    hoverAA: document.querySelector('#hovered-aa'),
+    hoverAAA: document.querySelector('#hovered-aaa'),
+    markerInput: document.querySelector('.marker-input'),
+    colorContrastRadio: document.querySelector('#color-contrast-radioContainer'),
+    resetButton: document.querySelector('.reset'),
+    playButton: document.querySelector('.play')
+};
 
 async function getCurrentTab() {
     const queryOptions = { active: true, lastFocusedWindow: true };
@@ -33,54 +41,65 @@ async function getCurrentTab() {
     return tab;
 }
 
-async function onPanelCreate() {
-    tabId = (await getCurrentTab())?.id;
-    if (!tabId) return;
-    port = chrome.runtime.connect({ name: getPortName(tabId) });
+function cleanupPort() {
+    if (port) {
+        port.onMessage.removeListener(handlePortMessage);
+        port.disconnect();
+        port = null;
+    }
+}
 
-    port.onMessage.addListener(function (msg) {
-        switch (msg.type) {
-            case PANEL_REGISTER_FRAME: {
-                // Each frame should listen to onSelectionChanged events.
-                console.log('PANEL_REGISTER_FRAME');
-                chrome.devtools.panels.elements.onSelectionChanged.addListener(() =>
-                    setSelectedElement(msg.url)
-                );
-                // Populate initial opening.
-                setSelectedElement(msg.url);
-                break;
-            }
-
-            case UPDATE_SELECTED_ELEMENT: {
-                const { selectedElement, color } = msg;
-                updateElementSelected(selectedElement);
-                updateContrastColor(color);
-                break;
-            }
-
-            case UPDATE_CONTRAST_COLOR: {
-                const { color } = msg;
-                updateContrastColor(color);
-                break;
-            }
-
-            case UPDATE_MARKER_HOVERED: {
-                const { hex, WCAG_AA, WCAG_AAA, contrastRatio } = msg;
-
-                updateMarkerHovered(hex, WCAG_AA, WCAG_AAA, contrastRatio);
-            }
+function handlePortMessage(msg) {
+    switch (msg.type) {
+        case PANEL_REGISTER_FRAME: {
+            const onSelectionChanged = () => setSelectedElement(msg.url);
+            chrome.devtools.panels.elements.onSelectionChanged.addListener(onSelectionChanged);
+            selectionChangedListeners.add(onSelectionChanged);
+            setSelectedElement(msg.url);
+            break;
         }
-    });
+
+        case UPDATE_SELECTED_ELEMENT: {
+            const { selectedElement, color } = msg;
+            updateElementSelected(selectedElement);
+            updateContrastColor(color);
+            break;
+        }
+
+        case UPDATE_CONTRAST_COLOR: {
+            const { color } = msg;
+            updateContrastColor(color);
+            break;
+        }
+
+        case UPDATE_MARKER_HOVERED: {
+            const { hex, WCAG_AA, WCAG_AAA, contrastRatio } = msg;
+            updateMarkerHovered(hex, WCAG_AA, WCAG_AAA, contrastRatio);
+        }
+    }
+}
+
+async function onPanelCreate() {
+    cleanupPort();
+    
+    tabId = (await getCurrentTab())?.id;
+    if (!tabId) {
+        console.error('No active tab found');
+        return;
+    }
+    
+    port = chrome.runtime.connect({ name: getPortName(tabId) });
+    port.onMessage.addListener(handlePortMessage);
 
     // Announce to content.js that they should register with their frame urls.
     port.postMessage({ type: PANEL_INIT });
 }
 
 function updateMarkerHovered(hex, WCAG_AA, WCAG_AAA, contrastRatio) {
-    bgColor.style.backgroundColor = `#${hex}`;
-    cr.innerText = contrastRatio;
-    hoverAA.innerHTML = `<img src="${chrome.runtime.getURL('assets/icons/' + (WCAG_AA ? 'check.svg' : 'times.svg'))}"/>`;
-    hoverAAA.innerHTML = `<img src="${chrome.runtime.getURL('assets/icons/' + (WCAG_AAA ? 'check.svg' : 'times.svg'))}"/>`;
+    elements.bgColor.style.backgroundColor = `#${hex}`;
+    elements.cr.innerText = contrastRatio;
+    elements.hoverAA.innerHTML = `<img src="${chrome.runtime.getURL('assets/icons/' + (WCAG_AA ? 'check.svg' : 'times.svg'))}"/>`;
+    elements.hoverAAA.innerHTML = `<img src="${chrome.runtime.getURL('assets/icons/' + (WCAG_AAA ? 'check.svg' : 'times.svg'))}"/>`;
 }
 
 function updateElementSelected(node) {
@@ -104,10 +123,10 @@ function handleChangeContrastAgainst(e) {
 }
 
 function handleReset(e) {
-    bgColor.style.backgroundColor = 'transparent';
-    cr.innerHTML = '';
-    hoverAA.innerHTML = '';
-    hoverAAA.innerHTML = '';
+    elements.bgColor.style.backgroundColor = 'transparent';
+    elements.cr.innerHTML = '';
+    elements.hoverAA.innerHTML = '';
+    elements.hoverAAA.innerHTML = '';
     port.postMessage({ type: UPDATE_SHOULD_RUN_CONTRAST, value: false });
 }
 
@@ -135,11 +154,28 @@ function setSelectedElement(url) {
     );
 }
 
+// Cleanup function to remove all listeners
+function cleanup() {
+    cleanupPort();
+    selectionChangedListeners.forEach(listener => {
+        chrome.devtools.panels.elements.onSelectionChanged.removeListener(listener);
+    });
+    selectionChangedListeners.clear();
+    
+    elements.markerInput?.removeEventListener('change', handleMarker);
+    elements.colorContrastRadio?.removeEventListener('change', handleChangeContrastAgainst);
+    elements.resetButton?.removeEventListener('click', handleReset);
+    elements.playButton?.removeEventListener('click', handlePlay);
+
+    elements = null;
+    tabId = null;
+}
+
+window.addEventListener('unload', cleanup);
+
 window.addEventListener('DOMContentLoaded', () => {
-    document.querySelector('.marker-input').addEventListener('change', handleMarker);
-    document
-        .querySelector('#color-contrast-radioContainer')
-        .addEventListener('change', handleChangeContrastAgainst);
-    document.querySelector('.reset').addEventListener('click', handleReset);
-    document.querySelector('.play').addEventListener('click', handlePlay);
+    elements.markerInput?.addEventListener('change', handleMarker);
+    elements.colorContrastRadio?.addEventListener('change', handleChangeContrastAgainst);
+    elements.resetButton?.addEventListener('click', handleReset);
+    elements.playButton?.addEventListener('click', handlePlay);
 });
