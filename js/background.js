@@ -2,61 +2,114 @@ import { messageTypes, getPortName } from './common.js';
 
 const { UPDATE_SHOULD_RUN_CONTRAST } = messageTypes;
 
-const portName2Port = new Map();
-const portName2Window = new Map();
+class PortManager {
+    constructor() {
+        this.ports = new Map();
+        this.windows = new Map();
+        this.messageListener = this.handleMessage.bind(this);
+        this.portMessageHandlers = new Map();
+    }
 
-async function doCaptureForTab(tabId, winId) {
-    const dataUri = await chrome.tabs.captureVisibleTab(winId, { format: 'png' });
-    chrome.tabs.sendMessage(tabId, { type: UPDATE_SHOULD_RUN_CONTRAST, image: dataUri });
-}
+    addPort(port) {
+        const { name } = port;
+        this.ports.set(name, port);
+        port.onDisconnect.addListener(() => this.handleDisconnect(port));
+        port.onMessage.addListener((msg) => this.handlePortMessage(msg, port));
+    }
 
-async function handlePortMessages(message, port) {
-    const { type } = message;
-    const { name } = port;
+    handleDisconnect(port) {
+        const { name } = port;
+        this.ports.delete(name);
+        this.windows.delete(name);
+        port.onMessage.removeListener(this.handlePortMessage);
+    }
 
-    const tabId = parseInt(name.split(':')[1]);
+    // message from devtools 
+    async handlePortMessage(message, port) {
+        try {
+            const { type, value } = message;
+            const { name } = port;
+            const tabId = parseInt(name.split(':')[1]);
 
-    switch (type) {
-        case UPDATE_SHOULD_RUN_CONTRAST:
-            if (message.value) {
-                //doing reset and clearing previous markers if any before taking new shot;
-                await chrome.tabs.sendMessage(tabId, {
-                    type: UPDATE_SHOULD_RUN_CONTRAST,
-                });
-                doCaptureForTab(tabId, portName2Window.get(name));
-            } else {
-                chrome.tabs.sendMessage(tabId, message);
+            if (!tabId) {
+                throw new Error('Invalid tab ID');
             }
-            break;
-        default:
-            chrome.tabs.sendMessage(tabId, message);
+
+            switch (type) {
+                case UPDATE_SHOULD_RUN_CONTRAST:
+                    if (value) {
+                        await this.captureAndSendTab(tabId, name);
+                    } else {
+                        await chrome.tabs.sendMessage(tabId, message);
+                    }
+                    break;
+                default:
+                    await chrome.tabs.sendMessage(tabId, message);
+            }
+        } catch (error) {
+            console.error('Port message handling failed:', error);
+        }
+    }
+
+    async captureAndSendTab(tabId, portName) {
+        try {
+            await chrome.tabs.sendMessage(tabId, {
+                type: UPDATE_SHOULD_RUN_CONTRAST,
+            });
+
+            const windowId = this.windows.get(portName);
+            if (!windowId) {
+                throw new Error('Window ID not found');
+            }
+
+            const dataUri = await chrome.tabs.captureVisibleTab(windowId, { format: 'png' });
+            if (!dataUri) {
+                throw new Error('Failed to capture tab');
+            }
+
+            await chrome.tabs.sendMessage(tabId, {
+                type: UPDATE_SHOULD_RUN_CONTRAST,
+                image: dataUri
+            });
+        } catch (error) {
+            console.error('Tab capture failed:', error);
+        }
+    }
+
+    // passing message from client to devtools
+    async handleMessage(message, sender) {
+        try {
+            if (!sender?.tab?.id) {
+                throw new Error('Invalid sender');
+            }
+
+            const portName = getPortName(sender.tab.id);
+            this.windows.set(portName, sender.tab.windowId);
+
+            const port = this.ports.get(portName);
+            if (port) {
+                port.postMessage(message);
+            }
+        } catch (error) {
+            console.error('Message handling failed:', error);
+        }
+    }
+
+    initialize() {
+        chrome.runtime.onConnect.addListener(port => this.addPort(port));
+        chrome.runtime.onMessage.addListener((msg, sender) => this.handleMessage(msg, sender));
+        chrome.runtime.onSuspend.addListener(() => this.cleanup());
+    }
+
+    cleanup() {
+        for (const [name, port] of this.ports) {
+            this.handleDisconnect(port);
+        }
+        this.ports.clear();
+        this.windows.clear();
+        this.portMessageHandlers.clear();
     }
 }
 
-function passMessagesFromDevtoolsToTab(port) {
-    const { name } = port;
-    portName2Port.set(name, port);
-    port.onMessage.addListener((message, port) => handlePortMessages(message, port));
-
-    // When a tab is closed, we should remove related listeners
-    port.onDisconnect.addListener(function () {
-        console.log('port disconnected!', name);
-        portName2Port.delete(name);
-        portName2Window.delete(name);
-        if (portName2Port.size === 0) {
-            chrome.runtime.onMessage.removeListener(sendMessagesToDevTools);
-        }
-    });
-}
-
-chrome.runtime.onConnect.addListener(passMessagesFromDevtoolsToTab);
-
-function sendMessagesToDevTools(message, sender, sendResponse) {
-    const portName = getPortName(sender.tab.id);
-    console.log('portname', portName);
-    portName2Window.set(portName, sender.tab.windowId);
-    portName2Port.get(portName)?.postMessage(message);
-}
-
-// Pass content script messages back to devtools
-chrome.runtime.onMessage.addListener(sendMessagesToDevTools);
+const portManager = new PortManager();
+portManager.initialize();
