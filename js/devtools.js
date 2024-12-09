@@ -13,6 +13,8 @@ const {
 
 let port, tabId;
 let selectionChangedListeners = new Set();
+let reconnectAttempts = 0;
+const MAX_RECONNECT_ATTEMPTS = 3;
 
 chrome.devtools.panels.create(
     'A11y Gradient',
@@ -79,6 +81,24 @@ function handlePortMessage(msg) {
     }
 }
 
+function connectPort() {
+    port = chrome.runtime.connect({ name: getPortName(tabId) });
+    
+    port.onDisconnect.addListener(() => {
+        if (chrome.runtime.lastError || reconnectAttempts >= MAX_RECONNECT_ATTEMPTS) {
+            console.error('Port disconnected permanently');
+            return;
+        }
+        reconnectAttempts++;
+        setTimeout(connectPort, 1000 * reconnectAttempts); // Exponential backoff
+    });
+
+    port.onMessage.addListener(handlePortMessage);
+
+    // Announce to content.js that they should register with their frame urls.
+    port.postMessage({ type: PANEL_INIT });
+}
+
 async function onPanelCreate() {
     cleanupPort();
     
@@ -87,12 +107,8 @@ async function onPanelCreate() {
         console.error('No active tab found');
         return;
     }
-    
-    port = chrome.runtime.connect({ name: getPortName(tabId) });
-    port.onMessage.addListener(handlePortMessage);
 
-    // Announce to content.js that they should register with their frame urls.
-    port.postMessage({ type: PANEL_INIT });
+    connectPort();
 }
 
 function updateMarkerHovered(hex, WCAG_AA, WCAG_AAA, contrastRatio) {
