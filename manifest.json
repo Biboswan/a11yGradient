@@ -2,7 +2,7 @@
     "name": "A11y Gradient",
     "description": "It gives you contrast ratio (accessibility standards) for text against each pixel of multi-colored backgrounds.",
     "version": "0.1.3",
-    "version_name": "0.1.2-alpha",
+    "version_name": "0.1.3-alpha",
     "manifest_version": 3,
     "content_scripts": [
         {
