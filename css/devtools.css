@@ -141,3 +141,10 @@ body {
     row-gap: 16px;
     margin-top: 52px;
 }
+
+.contrast-graph {
+    width: 508px;
+    height: 300px;
+    margin-top: 72px;
+    background-color: white;
+}

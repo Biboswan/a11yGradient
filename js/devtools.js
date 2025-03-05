@@ -1,4 +1,5 @@
 import { messageTypes, getPortName } from './common.js';
+import {SpectrumGraphBuilder } from './utils.js';
 
 const {
     PANEL_INIT,
@@ -9,11 +10,13 @@ const {
     SET_MARKER_GAP,
     UPDATE_SHOULD_RUN_CONTRAST,
     UPDATE_MARKER_HOVERED,
+    UPDATE_CONTRAST_SPECTRUM_GRAPH
 } = messageTypes;
 
-let port, tabId;
+let port, tabId, contrastColor;
 let selectionChangedListeners = new Set();
 let reconnectAttempts = 0;
+
 const MAX_RECONNECT_ATTEMPTS = 3;
 
 chrome.devtools.panels.create(
@@ -32,8 +35,11 @@ const elements = {
     markerInput: document.querySelector('.marker-input'),
     colorContrastRadio: document.querySelector('#color-contrast-radioContainer'),
     resetButton: document.querySelector('.reset'),
-    playButton: document.querySelector('.play')
+    playButton: document.querySelector('.play'),
+    contrastGraph: document.querySelector('.contrast-graph')
 };
+
+const spectrumGraphBuilder = new SpectrumGraphBuilder(elements.contrastGraph);
 
 async function getCurrentTab() {
     const queryOptions = { active: true, lastFocusedWindow: true };
@@ -77,6 +83,13 @@ function handlePortMessage(msg) {
         case UPDATE_MARKER_HOVERED: {
             const { hex, WCAG_AA, WCAG_AAA, contrastRatio } = msg;
             updateMarkerHovered(hex, WCAG_AA, WCAG_AAA, contrastRatio);
+            break;
+        }
+
+        case UPDATE_CONTRAST_SPECTRUM_GRAPH: {
+            const { pixelColorAtMarkerPoint, accessibilityBackgroundBoundary, fontSize } = msg;
+            updateContrastSpectrumGraph(pixelColorAtMarkerPoint, accessibilityBackgroundBoundary, fontSize);
+            break;
         }
     }
 }
@@ -132,6 +145,7 @@ function updateContrastColor(color) {
     displayBox.style.backgroundColor = color;
     displayBoxLabel.innerText = color;
     container.style.display = 'flex';
+    contrastColor = color;
 }
 
 function handleChangeContrastAgainst(e) {
@@ -143,7 +157,52 @@ function handleReset(e) {
     elements.cr.innerHTML = '';
     elements.hoverAA.innerHTML = '';
     elements.hoverAAA.innerHTML = '';
+    
+    spectrumGraphBuilder.reset();
+    
     port.postMessage({ type: UPDATE_SHOULD_RUN_CONTRAST, value: false });
+}
+
+function updateContrastSpectrumGraph(pixelColorAtMarkerPoint, accessibilityBackgroundBoundary, fontSize) {
+    if (!accessibilityBackgroundBoundary || !pixelColorAtMarkerPoint) return;
+
+    spectrumGraphBuilder.reset();
+    spectrumGraphBuilder.createBaseGradient(contrastColor);
+    spectrumGraphBuilder.setFontSize(fontSize);
+    
+    // Get boundary points and calculate scale factors
+    const { 
+        topLeft,
+        topRight,
+        bottomLeft,
+    } = accessibilityBackgroundBoundary;
+    
+    // Filter points within boundary
+    const boundaryPoints = pixelColorAtMarkerPoint.filter(pixel => {
+        const { x, y } = pixel;
+        return x >= topLeft.x && x <= topRight.x && 
+               y >= topLeft.y && y <= bottomLeft.y;
+    });
+
+    const cacheColors = new Set();
+
+    // Draw contrast lines for each color point
+    boundaryPoints.forEach(pixel => {
+        const { color } = pixel;
+        if (cacheColors.has(color)) return;
+        cacheColors.add(color);
+        const { aa, aaa } = spectrumGraphBuilder.getContrastLines(color);
+        
+        // Draw AA line
+        if (aa && aa.length > 0) {
+            spectrumGraphBuilder.drawContrastLine(aa, 'rgba(255, 255, 255, 0.7)');
+        }
+        
+        // Draw AAA line
+        if (aaa && aaa.length > 0) {
+            spectrumGraphBuilder.drawContrastLine(aaa, 'rgba(255, 255, 0, 0.7)');
+        }
+    });
 }
 
 function handlePlay(e) {
@@ -172,19 +231,27 @@ function setSelectedElement(url) {
 
 // Cleanup function to remove all listeners
 function cleanup() {
+    // Clean up port first
     cleanupPort();
-    selectionChangedListeners.forEach(listener => {
-        chrome.devtools.panels.elements.onSelectionChanged.removeListener(listener);
-    });
-    selectionChangedListeners.clear();
     
-    elements.markerInput?.removeEventListener('change', handleMarker);
-    elements.colorContrastRadio?.removeEventListener('change', handleChangeContrastAgainst);
-    elements.resetButton?.removeEventListener('click', handleReset);
-    elements.playButton?.removeEventListener('click', handlePlay);
+    // Clean up selection change listeners
+    if (selectionChangedListeners) {
+        selectionChangedListeners.forEach(listener => {
+            chrome.devtools.panels.elements.onSelectionChanged.removeListener(listener);
+        });
+        selectionChangedListeners.clear();
+    }
+    
+    // Clean up DOM event listeners if elements exist
+    if (elements) {
+        elements.markerInput?.removeEventListener('change', handleMarker);
+        elements.colorContrastRadio?.removeEventListener('change', handleChangeContrastAgainst);
+        elements.resetButton?.removeEventListener('click', handleReset);
+        elements.playButton?.removeEventListener('click', handlePlay);
+    }
 
-    elements = null;
-    tabId = null;
+    // Reset canvas if it exists
+    spectrumGraphBuilder.reset();
 }
 
 window.addEventListener('unload', cleanup);

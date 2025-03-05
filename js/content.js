@@ -10,6 +10,8 @@ let _selectedElement,
     _colorContrastType = 'text-color',
     _bgElement,
     _markerGap = 20,
+    accessibilityBackgroundBoundary,
+    pixelColorAtMarkerPoint,
     shouldRunContrast = 0;
 
 const canvas = document.createElement('canvas');
@@ -25,6 +27,7 @@ box.classList.add('a11y-gradient-box');
 
 window.addEventListener('DOMContentLoaded', handleDOMContentLoaded);
 
+// Have a adaptor pattern and hide the underlying contrast algorithm
 const ccc = new ColorContrastChecker();
 
 snapshot.onload = snapshotLoaded;
@@ -38,6 +41,7 @@ const {
     SET_MARKER_GAP,
     UPDATE_SHOULD_RUN_CONTRAST,
     UPDATE_MARKER_HOVERED,
+    UPDATE_CONTRAST_SPECTRUM_GRAPH
 } = messageTypes;
 
 const colorTypeToStyle = {
@@ -235,20 +239,54 @@ function createOverlap() {
     box.append(...dots);
 }
 
+function findAccessibilityBackgroundBoundary(selectedElement, bgElement) {
+    if (!selectedElement || !bgElement) return null;
+
+    const textRect = selectedElement.getBoundingClientRect();
+    const bgRect = bgElement.getBoundingClientRect();
+    
+    // Get text dimensions
+    const textHeight = textRect.height;
+    const textWidth = textRect.width;
+    
+    // Calculate boundary dimensions (2x text dimensions)
+    const boundaryHeight = textHeight * 2;
+    const boundaryWidth = textWidth * 2;
+    
+    // Calculate the centers
+    const textVerticalCenter = textRect.top + (textHeight / 2);
+    const textHorizontalCenter = textRect.left + (textWidth / 2);
+    
+    // Calculate boundaries, ensuring they stay within the background element
+    const top = Math.max(bgRect.top, textVerticalCenter - boundaryHeight / 2);
+    const bottom = Math.min(bgRect.bottom, textVerticalCenter + boundaryHeight / 2);
+    const left = Math.max(bgRect.left, textHorizontalCenter - boundaryWidth / 2);
+    const right = Math.min(bgRect.right, textHorizontalCenter + boundaryWidth / 2);
+    
+    // Create boundary points for all corners
+    return {
+        // Corner points
+        topLeft: { x: left, y: top },
+        topRight: { x: right, y: top },
+        bottomLeft: { x: left, y: bottom },
+        bottomRight: { x: right, y: bottom },
+    };
+}
+
 //think of locking logic
 function findColorContrastRatios(element) {
     const { left, top, width, height } = element.getBoundingClientRect();
-
+    const pixelColorAtMarkerPoint = [];
     const contrastData = [];
 
     const w = _selectedElement?.ownerDocument.defaultView;
     const fontSizeStr = w.getComputedStyle(_selectedElement).getPropertyValue('font-size');
+    const fontWeight = w.getComputedStyle(_selectedElement).getPropertyValue('font-weight');
     ccc.fontSize = fontSizeStr.substring(0, fontSizeStr.length - 2);
 
     const contrastColorHex = rgbHex(contrastColor);
     const l1 = ccc.hexToLuminance(`#${contrastColorHex.substring(0, 6)}`);
 
-    //console.log('fs', fontSize);
     for (let y = 0; y <= height; y = y + _markerGap) {
         contrastData.push([]);
         const yc = y + top;
@@ -257,6 +295,7 @@ function findColorContrastRatios(element) {
             const xc = x + left;
             const [r, g, b, a] = ctx.getImageData(xc, yc, 1, 1).data;
             const hex = rgbHex(r, g, b);
+            pixelColorAtMarkerPoint.push({x:xc,y:yc, color: hex});
             const l2 = ccc.hexToLuminance(`#${hex}`);
             const contrastRatio = ccc.getContrastRatio(l1, l2);
             const { WCAG_AA, WCAG_AAA } = ccc.verifyContrastRatio(contrastRatio);
@@ -264,7 +303,7 @@ function findColorContrastRatios(element) {
         }
     }
 
-    return contrastData;
+    return { contrastData, pixelColorAtMarkerPoint };
 }
 
 function snapshotLoaded() {
@@ -291,6 +330,14 @@ function snapshotLoaded() {
 
     updateMarkers();
     createOverlap();
+    accessibilityBackgroundBoundary = findAccessibilityBackgroundBoundary(_selectedElement,_bgElement);
+
+    chrome.runtime.sendMessage({
+        type: UPDATE_CONTRAST_SPECTRUM_GRAPH,
+        pixelColorAtMarkerPoint,
+        accessibilityBackgroundBoundary,
+        fontSize: ccc.fontSize
+    });
 }
 
 function updateMarkers() {
@@ -299,7 +346,9 @@ function updateMarkers() {
             ? findBgElement(_selectedElement)
             : findBgElement(_selectedElement.parentElement);
 
-    _contrastData = findColorContrastRatios(_bgElement || _selectedElement.ownerDocument.body);
+    const data  = findColorContrastRatios(_bgElement || _selectedElement.ownerDocument.body);
+    pixelColorAtMarkerPoint = data.pixelColorAtMarkerPoint;
+    _contrastData = data.contrastData;
 }
 
 function play(image) {
@@ -316,6 +365,8 @@ function reset() {
     if (shouldRunContrast === 0) return;
     shouldRunContrast = 0;
     _contrastData = null;
+    pixelColorAtMarkerPoint = null;
+    accessibilityBackgroundBoundary = null;
     box.removeEventListener('mouseover', handleMouseOver, false);
     box.classList.add('a11y-gradient-box-reset');
     box.innerHTML = '';
