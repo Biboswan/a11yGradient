@@ -148,3 +148,9 @@ body {
     margin-top: 72px;
     background-color: white;
 }
+
+#average-contrast-ratio-container {
+    display: flex;
+    justify-content: space-between;
+    margin-top: 45px;
+}

@@ -1,4 +1,4 @@
-import { messageTypes, getPortName } from './common.js';
+import { messageTypes, getPortName, getContrastThreshold } from './common.js';
 import {SpectrumGraphBuilder } from './utils.js';
 
 const {
@@ -36,7 +36,8 @@ const elements = {
     colorContrastRadio: document.querySelector('#color-contrast-radioContainer'),
     resetButton: document.querySelector('.reset'),
     playButton: document.querySelector('.play'),
-    contrastGraph: document.querySelector('.contrast-graph')
+    contrastGraph: document.querySelector('.contrast-graph'),
+    averageContrastRatio: document.querySelector('#average-contrast-ratio')
 };
 
 const spectrumGraphBuilder = new SpectrumGraphBuilder(elements.contrastGraph);
@@ -87,8 +88,8 @@ function handlePortMessage(msg) {
         }
 
         case UPDATE_CONTRAST_SPECTRUM_GRAPH: {
-            const { pixelColorAtMarkerPoint, accessibilityBackgroundBoundary, fontSize } = msg;
-            updateContrastSpectrumGraph(pixelColorAtMarkerPoint, accessibilityBackgroundBoundary, fontSize);
+            const { pixelColorAtMarkerPoint, accessibilityBackgroundBoundary, fontSize, fontWeight } = msg;
+            updateContrastSpectrumGraph(pixelColorAtMarkerPoint, accessibilityBackgroundBoundary, fontSize, fontWeight);
             break;
         }
     }
@@ -163,12 +164,12 @@ function handleReset(e) {
     port.postMessage({ type: UPDATE_SHOULD_RUN_CONTRAST, value: false });
 }
 
-function updateContrastSpectrumGraph(pixelColorAtMarkerPoint, accessibilityBackgroundBoundary, fontSize) {
-    if (!accessibilityBackgroundBoundary || !pixelColorAtMarkerPoint) return;
+function updateContrastSpectrumGraph(pixelColorAtMarkerPoint, accessibilityBackgroundBoundary, fontSize, fontWeight) {
+    if (!accessibilityBackgroundBoundary || !pixelColorAtMarkerPoint || !contrastColor) return;
 
     spectrumGraphBuilder.reset();
-    spectrumGraphBuilder.createBaseGradient(contrastColor);
-    spectrumGraphBuilder.setFontSize(fontSize);
+    spectrumGraphBuilder.initialize(fontSize, fontWeight, contrastColor);
+    spectrumGraphBuilder.createBaseGradient();
     
     // Get boundary points and calculate scale factors
     const { 
@@ -176,6 +177,8 @@ function updateContrastSpectrumGraph(pixelColorAtMarkerPoint, accessibilityBackg
         topRight,
         bottomLeft,
     } = accessibilityBackgroundBoundary;
+
+    const { aa, aaa } = getContrastThreshold(fontSize, fontWeight);
     
     // Filter points within boundary
     const boundaryPoints = pixelColorAtMarkerPoint.filter(pixel => {
@@ -186,23 +189,22 @@ function updateContrastSpectrumGraph(pixelColorAtMarkerPoint, accessibilityBackg
 
     const cacheColors = new Set();
 
-    // Draw contrast lines for each color point
-    boundaryPoints.forEach(pixel => {
+    const drawContrastLinesAgainstEachBackground = (pixel) => {
         const { color } = pixel;
         if (cacheColors.has(color)) return;
         cacheColors.add(color);
-        const { aa, aaa } = spectrumGraphBuilder.getContrastLines(color);
-        
-        // Draw AA line
-        if (aa && aa.length > 0) {
-            spectrumGraphBuilder.drawContrastLine(aa, 'rgba(255, 255, 255, 0.7)');
-        }
-        
-        // Draw AAA line
-        if (aaa && aaa.length > 0) {
-            spectrumGraphBuilder.drawContrastLine(aaa, 'rgba(255, 255, 0, 0.7)');
-        }
-    });
+
+        const aaLine = spectrumGraphBuilder.getContrastRatioLine(aa, color);
+        spectrumGraphBuilder.drawContrastLine(aaLine, 'rgba(255, 255, 255, 0.7)');
+
+        const aaaLine = spectrumGraphBuilder.getContrastRatioLine(aaa, color);
+        spectrumGraphBuilder.drawContrastLine(aaaLine, 'rgba(255, 255, 0, 0.7)');
+    };
+
+    // Draw contrast lines for each color point
+    boundaryPoints.forEach(drawContrastLinesAgainstEachBackground);
+    const averageContrastRatio = boundaryPoints.reduce((acc, pixel) => acc + pixel.contrastRatio, 0) / boundaryPoints.length;
+    elements.averageContrastRatio.innerText = averageContrastRatio.toFixed(2);
 }
 
 function handlePlay(e) {
@@ -248,6 +250,7 @@ function cleanup() {
         elements.colorContrastRadio?.removeEventListener('change', handleChangeContrastAgainst);
         elements.resetButton?.removeEventListener('click', handleReset);
         elements.playButton?.removeEventListener('click', handlePlay);
+        elements.averageContrastRatio && (elements.averageContrastRatio.innerText = '');
     }
 
     // Reset canvas if it exists

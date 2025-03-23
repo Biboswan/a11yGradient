@@ -283,6 +283,7 @@ function findColorContrastRatios(element) {
     const fontSizeStr = w.getComputedStyle(_selectedElement).getPropertyValue('font-size');
     const fontWeight = w.getComputedStyle(_selectedElement).getPropertyValue('font-weight');
     ccc.fontSize = fontSizeStr.substring(0, fontSizeStr.length - 2);
+    ccc.fontWeight = fontWeight;
 
     const contrastColorHex = rgbHex(contrastColor);
     const l1 = ccc.hexToLuminance(`#${contrastColorHex.substring(0, 6)}`);
@@ -295,9 +296,9 @@ function findColorContrastRatios(element) {
             const xc = x + left;
             const [r, g, b, a] = ctx.getImageData(xc, yc, 1, 1).data;
             const hex = rgbHex(r, g, b);
-            pixelColorAtMarkerPoint.push({x:xc,y:yc, color: hex});
             const l2 = ccc.hexToLuminance(`#${hex}`);
             const contrastRatio = ccc.getContrastRatio(l1, l2);
+            pixelColorAtMarkerPoint.push({x:xc,y:yc, color: hex, contrastRatio });
             const { WCAG_AA, WCAG_AAA } = ccc.verifyContrastRatio(contrastRatio);
             contrastData[lastIndex].push({ x: xc, y: yc, hex, WCAG_AA, WCAG_AAA, contrastRatio });
         }
@@ -336,7 +337,8 @@ function snapshotLoaded() {
         type: UPDATE_CONTRAST_SPECTRUM_GRAPH,
         pixelColorAtMarkerPoint,
         accessibilityBackgroundBoundary,
-        fontSize: ccc.fontSize
+        fontSize: ccc.fontSize,
+        fontWeight: ccc.fontWeight
     });
 }
 
