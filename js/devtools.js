@@ -158,7 +158,7 @@ function handleReset(e) {
     elements.cr.innerHTML = '';
     elements.hoverAA.innerHTML = '';
     elements.hoverAAA.innerHTML = '';
-    
+    elements.averageContrastRatio.innerText = '';
     spectrumGraphBuilder.reset();
     
     port.postMessage({ type: UPDATE_SHOULD_RUN_CONTRAST, value: false });
@@ -166,6 +166,9 @@ function handleReset(e) {
 
 function updateContrastSpectrumGraph(pixelColorAtMarkerPoint, accessibilityBackgroundBoundary, fontSize, fontWeight) {
     if (!accessibilityBackgroundBoundary || !pixelColorAtMarkerPoint || !contrastColor) return;
+
+    const {contrastGraph, averageContrastRatio } = elements;
+    if (!contrastGraph || !averageContrastRatio) return;
 
     spectrumGraphBuilder.reset();
     spectrumGraphBuilder.initialize(fontSize, fontWeight, contrastColor);
@@ -195,16 +198,16 @@ function updateContrastSpectrumGraph(pixelColorAtMarkerPoint, accessibilityBackg
         cacheColors.add(color);
 
         const aaLine = spectrumGraphBuilder.getContrastRatioLine(aa, color);
-        spectrumGraphBuilder.drawContrastLine(aaLine, 'rgba(255, 255, 255, 0.7)');
+        spectrumGraphBuilder.drawContrastLine(aaLine, 'rgba(255, 255, 255, 0.7)', { category: 'AA', bgColor: color });
 
         const aaaLine = spectrumGraphBuilder.getContrastRatioLine(aaa, color);
-        spectrumGraphBuilder.drawContrastLine(aaaLine, 'rgba(255, 255, 0, 0.7)');
+        spectrumGraphBuilder.drawContrastLine(aaaLine, 'rgba(255, 255, 0, 0.7)', { category: 'AAA', bgColor: color });
     };
 
     // Draw contrast lines for each color point
     boundaryPoints.forEach(drawContrastLinesAgainstEachBackground);
-    const averageContrastRatio = boundaryPoints.reduce((acc, pixel) => acc + pixel.contrastRatio, 0) / boundaryPoints.length;
-    elements.averageContrastRatio.innerText = averageContrastRatio.toFixed(2);
+    const averageContrastRatioValue = boundaryPoints.reduce((acc, pixel) => acc + pixel.contrastRatio, 0) / boundaryPoints.length;
+    averageContrastRatio.innerText = averageContrastRatioValue.toFixed(2);
 }
 
 function handlePlay(e) {
@@ -250,7 +253,6 @@ function cleanup() {
         elements.colorContrastRadio?.removeEventListener('change', handleChangeContrastAgainst);
         elements.resetButton?.removeEventListener('click', handleReset);
         elements.playButton?.removeEventListener('click', handlePlay);
-        elements.averageContrastRatio && (elements.averageContrastRatio.innerText = '');
     }
 
     // Reset canvas if it exists

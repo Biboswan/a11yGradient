@@ -147,10 +147,73 @@ body {
     height: 300px;
     margin-top: 72px;
     background-color: white;
+    cursor: crosshair;
 }
 
 #average-contrast-ratio-container {
     display: flex;
     justify-content: space-between;
     margin-top: 45px;
+}
+
+.canvas-tooltip {
+    position: absolute;
+    background-color: rgba(0, 0, 0, 0.85);
+    color: white;
+    padding: 12px;
+    border-radius: 6px;
+    box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+    max-width: 250px;
+    word-wrap: break-word;
+    z-index: 1000;
+    display: none;
+    font-family: Arial, sans-serif;
+    font-size: 14px;
+    line-height: 1.4;
+}
+
+.canvas-tooltip.is-visible {
+    display: block;
+}
+
+.canvas-tooltip__title {
+    font-weight: bold;
+    margin-bottom: 6px;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.2);
+    padding-bottom: 4px;
+}
+
+.canvas-tooltip__content {
+    max-height: 200px;
+    overflow-y: auto;
+}
+
+.canvas-tooltip__item {
+    margin-bottom: 4px;
+}
+
+.canvas-tooltip__item strong {
+    color: #e0e0e0;
+    margin-right: 8px;
+}
+
+.canvas-tooltip__content__row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+.canvas-tooltip__content__row__label {
+    color: var(--color-white);
+}
+
+.canvas-tooltip__content__row__value {
+    color: var(--color-white);
+}
+
+.canvas-tooltip__color {
+    width: 16px;
+    height: 16px;
+    border-radius: 4px;
+    border: 1px solid var(--color-white);
 }

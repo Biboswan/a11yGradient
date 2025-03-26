@@ -6,6 +6,13 @@
         <link rel="stylesheet" type="text/css" href="../css/devtools.css" />
     </head>
     <body class="bgColor">
+        <!-- Existing Tooltip in HTML -->
+        <div id="canvas-tooltip" class="canvas-tooltip" role="tooltip" aria-hidden="true">
+            <div class="canvas-tooltip__title">Line Details</div>
+            <div class="canvas-tooltip__content">
+            </div>
+        </div>
+
         <div class="button-container">
             <button class="reset">Reset</button>
             <button class="play">Play</button>
@@ -71,7 +78,7 @@
                 </div>
             </div>
         </div>
-        <canvas class="contrast-graph" height="300" width="508">
+        <canvas class="contrast-graph" height="300" width="508" tabindex="0" role="img" aria-label="Interactive data visualization">
         </canvas>
         <div id="average-contrast-ratio-container">
             <div class="f2">Average Contrast Ratio</div>
