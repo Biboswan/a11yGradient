@@ -37,7 +37,8 @@ const elements = {
     resetButton: document.querySelector('.reset'),
     playButton: document.querySelector('.play'),
     contrastGraph: document.querySelector('.contrast-graph'),
-    averageContrastRatio: document.querySelector('#average-contrast-ratio')
+    averageContrastRatio: document.querySelector('#average-contrast-ratio'),
+    boundingBoxDimensions: document.querySelector('#bounding-box-dimensions')
 };
 
 const spectrumGraphBuilder = new SpectrumGraphBuilder(elements.contrastGraph);
@@ -159,6 +160,7 @@ function handleReset(e) {
     elements.hoverAA.innerHTML = '';
     elements.hoverAAA.innerHTML = '';
     elements.averageContrastRatio.innerText = '';
+    elements.boundingBoxDimensions.innerText = '';
     spectrumGraphBuilder.reset();
     
     port.postMessage({ type: UPDATE_SHOULD_RUN_CONTRAST, value: false });
@@ -167,8 +169,8 @@ function handleReset(e) {
 function updateContrastSpectrumGraph(pixelColorAtMarkerPoint, accessibilityBackgroundBoundary, fontSize, fontWeight) {
     if (!accessibilityBackgroundBoundary || !pixelColorAtMarkerPoint || !contrastColor) return;
 
-    const {contrastGraph, averageContrastRatio } = elements;
-    if (!contrastGraph || !averageContrastRatio) return;
+    const {contrastGraph, averageContrastRatio, boundingBoxDimensions } = elements;
+    if (!contrastGraph || !averageContrastRatio || !boundingBoxDimensions) return;
 
     spectrumGraphBuilder.reset();
     spectrumGraphBuilder.initialize(fontSize, fontWeight, contrastColor);
@@ -180,6 +182,9 @@ function updateContrastSpectrumGraph(pixelColorAtMarkerPoint, accessibilityBackg
         topRight,
         bottomLeft,
     } = accessibilityBackgroundBoundary;
+
+    const horizontalRadius = Math.round(topRight.x - topLeft.x);
+    const verticalRadius = Math.round(bottomLeft.y - topLeft.y);
 
     const { aa, aaa } = getContrastThreshold(fontSize, fontWeight);
     
@@ -208,6 +213,7 @@ function updateContrastSpectrumGraph(pixelColorAtMarkerPoint, accessibilityBackg
     boundaryPoints.forEach(drawContrastLinesAgainstEachBackground);
     const averageContrastRatioValue = boundaryPoints.reduce((acc, pixel) => acc + pixel.contrastRatio, 0) / boundaryPoints.length;
     averageContrastRatio.innerText = averageContrastRatioValue.toFixed(2);
+    boundingBoxDimensions.innerText = `(${horizontalRadius} x ${verticalRadius}) bounding box`;
 }
 
 function handlePlay(e) {
